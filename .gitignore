@@ -1,0 +1,8 @@
+node_modules/
+test-results/
+playwright-report/
+# never commit real spreadsheets or backups
+*.xlsx
+!tests/fixtures/*.xlsx
+*.json.bak
+.DS_Store
