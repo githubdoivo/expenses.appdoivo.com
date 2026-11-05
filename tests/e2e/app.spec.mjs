@@ -276,7 +276,10 @@ for (const view of ["month", "search", "charts", "shared", "goals", "settings"])
     for (const scheme of ["light", "dark"]) {
       await page.emulateMedia({ colorScheme: scheme });
       await page.goto(`/#${view}${view === "month" ? "/2026-01" : ""}`);
-      await page.waitForTimeout(150);
+      // let WebKit finish styling the freshly drawn view before measuring colours
+      // (headless WebKit styles new rows in a scroller only once it paints, so force one paint)
+      await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+      await page.screenshot();
       const r = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
       expect(r.violations.filter((v) => ["serious", "critical"].includes(v.impact)).map((v) => `${scheme}: ${v.id} ${v.nodes.map((n) => n.target).join(", ")}`)).toEqual([]);
     }
@@ -302,10 +305,11 @@ test("desktop: month view fits side by side and the add form is one row", async 
   expect(side.x).toBeGreaterThan(main.x + main.width - 1);
 });
 
-test("the privacy page exists in both languages and runs no scripts", async ({ page }) => {
+test("the privacy page exists in both languages and runs only the frame script", async ({ page }) => {
   await page.goto("/privacy.html");
   await expect(page.locator("h1")).toHaveText(["Privacy", "Privacidade"]);
-  expect(await page.locator("script").count()).toBe(0);
+  await expect(page.locator("script")).toHaveCount(1);
+  await expect(page.locator("script")).toHaveAttribute("src", "/js/frame.js");
   await expect(page.locator("body")).toContainText("Nothing.");
 });
 
@@ -345,4 +349,53 @@ test("works offline after the first visit (installable app)", async ({ page, con
   await expect(page.locator("#ch-month svg")).toBeVisible();
   const manifest = await page.evaluate(async () => (await fetch("/manifest.webmanifest")).json());
   expect(manifest.display).toBe("standalone");
+});
+
+/* ---------- phone frame (same as ivolopes.com) ---------- */
+test("nothing is pinned to the screen edges (iPhone Safari paints a solid band over it)", async ({ page }) => {
+  await open(page);
+  await importSample(page);
+  await page.locator("#add-form input[name=desc]").fill("x"); // makes the toast possible
+  const pinned = await page.evaluate(() => [...document.querySelectorAll("body *")].filter((el) => ["fixed", "sticky"].includes(getComputedStyle(el).position)).map((el) => el.id || el.className));
+  expect(pinned).toEqual([]);
+  expect(await page.evaluate(() => getComputedStyle(document.documentElement).overflowY)).toBe("hidden");
+});
+
+test("the window sits scrolled down by the strip above it, and only the page layer scrolls", async ({ page }) => {
+  await open(page);
+  await importSample(page);
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(160);
+  const top = await page.locator(".top").evaluate((el) => el.getBoundingClientRect().top);
+  expect(top).toBeGreaterThanOrEqual(0);
+  expect(top).toBeLessThan(40);
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(160);
+  await page.locator(".page").evaluate((el) => el.scrollTo(0, 400));
+  expect(await page.locator(".page").evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
+});
+
+test("the background covers the whole screen and past it, and is never one flat colour", async ({ page }) => {
+  await open(page);
+  const vp = page.viewportSize();
+  const bg = await page.locator(".bg").evaluate((el) => { const r = el.getBoundingClientRect(); return { top: r.top, bottom: r.bottom, w: r.width, img: getComputedStyle(el).backgroundImage }; });
+  expect(bg.top).toBeLessThanOrEqual(-150);
+  expect(bg.bottom).toBeGreaterThanOrEqual(vp.height);
+  expect(bg.w).toBeGreaterThanOrEqual(vp.width);
+  expect(bg.img).not.toBe("none");
+  for (const scheme of ["light", "dark"]) {
+    await page.emulateMedia({ colorScheme: scheme });
+    expect(await page.locator(".bg").evaluate((el) => getComputedStyle(el).backgroundImage), scheme).not.toBe("none");
+  }
+});
+
+test("the toast shows inside the screen, above the bottom edge", async ({ page }) => {
+  await open(page);
+  await importSample(page);
+  await page.goto("/#month/2026-01");
+  await page.locator(".entries tbody tr").first().click();
+  await page.locator("#edit").getByRole("button", { name: /Delete/ }).click();
+  const box = await page.locator("#toast").boundingBox();
+  const vp = page.viewportSize();
+  expect(box.y).toBeGreaterThan(0);
+  expect(box.y + box.height).toBeLessThanOrEqual(vp.height);
 });
