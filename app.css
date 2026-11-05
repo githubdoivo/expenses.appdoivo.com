@@ -323,3 +323,10 @@ dialog h2 { font-size: 1.25rem; }
 @media (forced-colors: active) { .chart-svg .mark, .hb-bar, .progress span { fill: CanvasText; background: CanvasText; } }
 .doc article h2 { font-size: 1.1rem; margin: 18px 0 6px; }
 .doc article p { max-width: 70ch; }
+
+/* walks: a quiet km tally, not money */
+.walk-total { display: grid; gap: 2px; margin: 0 0 10px; } .walk-total span { color: var(--ink-2); font-size: .9rem; }
+.walk-form { display: grid; grid-template-columns: 80px minmax(0, 1fr); gap: 8px 10px; align-items: end; }
+.walk-form .f-where { grid-column: 1 / -1; } .walk-form button { grid-column: 1 / -1; justify-self: start; }
+.walk-list { list-style: none; margin: 10px 0 0; padding: 0; } .walk-list li { display: flex; gap: 10px; align-items: center; padding: 4px 0; border-bottom: 1px solid var(--rule); } .walk-list li span:first-child { flex: 1; } .walk-list .sub { color: var(--ink-3); font-size: .85rem; }
+.walk-hint { font-style: italic; }
