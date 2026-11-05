@@ -118,7 +118,8 @@ test("importing the original spreadsheet layout brings in months, totals, conclu
   await page.goto("/#month/2026-01");
   await expect(page.locator("#st-spent")).toContainText(/468[.,]45/);
   await expect(page.locator("#st-saved")).toContainText(/50[.,]00/);
-  await expect(page.locator("#conclusion")).toHaveValue("mês de teste\nsegunda linha");
+  await expect(page.locator("#conclusion")).toHaveText("mês de teste\nsegunda linha");
+  await expect(page.locator("#notes")).toHaveJSProperty("readOnly", true); // a concluded month keeps its notes as they are
   await expect(page.locator("#left-off")).toContainText("Banco A");
   await expect(page.locator("#entries")).toContainText("livro <b>&amp;</b>");
   expect(await page.locator("#entries b").count()).toBe(0);
@@ -220,6 +221,7 @@ test("settings: add, rename, reorder, hide and merge categories; add an account"
   await page.locator("#cat-list li").last().locator('[data-up]').click();
   await expect(page.locator("#cat-list li").nth(-2).locator('input[type="text"]')).toHaveValue("Pets");
   const transport = page.locator("#cat-list li").filter({ has: page.locator('input[value="Transport"]') });
+  await transport.locator(".more summary").click();
   await transport.locator("select").last().selectOption({ label: "Other" });
   await page.locator("#confirm-yes").click();
   await expect(page.locator('#cat-list input[value="Transport"]')).toHaveCount(0);
@@ -398,4 +400,27 @@ test("the toast shows inside the screen, above the bottom edge", async ({ page }
   const vp = page.viewportSize();
   expect(box.y).toBeGreaterThan(0);
   expect(box.y + box.height).toBeLessThanOrEqual(vp.height);
+});
+
+
+test("month notes stay editable until the month's conclusion is made; no going to future months", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.locator("#next")).toBeDisabled();
+  const now = new Date(), cur = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const future = `${now.getFullYear() + 1}-01`;
+  await page.goto(`/#month/${future}`);
+  await expect(page.locator("#next")).toBeDisabled();
+  await expect(page.locator("#draft")).toBeHidden(); // this month: the conclusion waits for the month to end
+  await page.locator("#notes").fill("Car service this month");
+  await expect(page.locator("#notes-hint")).not.toBeEmpty();
+  await page.locator("#prev").click();
+  const f = page.locator("#add-form");
+  await f.locator('[name="desc"]').fill("Groceries"); await f.locator('[name="cat"]').selectOption({ label: "Food" }); await f.locator('[name="amount"]').fill("20"); await f.locator('button[type="submit"]').click();
+  await page.locator("#notes").fill("A quiet month");
+  await page.waitForTimeout(700);
+  await page.locator("#draft").click(); await page.locator("#confirm-yes").click();
+  await expect(page.locator("#conclusion")).toContainText("A quiet month");
+  await expect(page.locator("#notes")).toHaveJSProperty("readOnly", true);
+  await expect(page.locator("#draft")).toBeHidden();
+  void cur;
 });

@@ -21,8 +21,8 @@
 <meta name="theme-color" content="#f7e2cf" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#1c1a16" media="(prefers-color-scheme: dark)">
 <meta name="color-scheme" content="light dark">
-<link rel="stylesheet" href="/app.css?v=2">
-<script type="module" src="/js/app.js?v=2"></script>
+<link rel="stylesheet" href="/app.css?v=3">
+<script type="module" src="/js/app.js?v=3"></script>
 </head>
 <body>
 <div class="bg" aria-hidden="true"></div>
@@ -96,11 +96,16 @@
             <h2 class="card-title" id="sum-title" data-w="summary">Summary</h2>
             <table class="summary" id="summary"><tbody></tbody><tfoot><tr><th scope="row" data-w="total">Total</th><td class="num" id="sum-total"></td></tr></tfoot></table>
           </section>
+          <section class="card" aria-labelledby="notes-title">
+            <h2 class="card-title" id="notes-title" data-w="notes">Month Notes</h2>
+            <label class="sr" for="notes" data-w="notes">Month Notes</label>
+            <textarea id="notes" rows="3" maxlength="2000" data-w-placeholder="notesHint"></textarea>
+            <p class="hint" id="notes-hint" aria-live="polite"></p>
+          </section>
           <section class="card" aria-labelledby="concl-title">
             <h2 class="card-title" id="concl-title" data-w="conclusion">Conclusion</h2>
-            <label class="sr" for="conclusion" data-w="conclusion">Conclusion</label>
-            <textarea id="conclusion" rows="3" maxlength="2000" data-w-placeholder="conclusionHint"></textarea>
-            <button type="button" class="ghost small" id="draft" data-w="draft">Write a Draft</button>
+            <p id="conclusion" class="conclusion"></p>
+            <button type="button" class="ghost small" id="draft" data-w="draft">Make the Conclusion</button>
           </section>
           <section class="card" aria-labelledby="left-title" id="left-card">
             <h2 class="card-title" id="left-title" data-w="whereLeftOff">Where You Left Off</h2>

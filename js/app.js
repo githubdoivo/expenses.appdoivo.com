@@ -24,7 +24,7 @@ function h(tag, props = {}, ...kids) {
 }
 
 const S = {
-  entries: [], categories: [], accounts: [], goals: [], conclusions: {},
+  entries: [], categories: [], accounts: [], goals: [], conclusions: {}, notes: {},
   settings: { lang: "en", currency: "EUR", theme: "" },
   view: "month", month: M.thisMonth(), range: "12", searchShown: 200,
 };
@@ -92,7 +92,7 @@ const VIEWS = ["month", "search", "charts", "shared", "goals", "settings"];
 function route() {
   const [v, m] = location.hash.replace(/^#/, "").split("/");
   S.view = VIEWS.includes(v) ? v : "month";
-  if (S.view === "month" && m && M.isMonth(m)) S.month = m;
+  if (S.view === "month" && m && M.isMonth(m)) S.month = m > M.thisMonth() ? M.thisMonth() : m;
   for (const x of VIEWS) $(`#v-${x}`).hidden = x !== S.view;
   for (const b of $$(".nav button")) { if (b.dataset.view === S.view) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); }
   render();
@@ -143,6 +143,7 @@ function renderMonth() {
   const m = S.month, cats = catById();
   $("#month-title").textContent = monthLabel(m);
   $("#today").hidden = m === M.thisMonth();
+  $("#next").disabled = m >= M.thisMonth();
   const sum = M.monthSummary(S.entries, S.categories, m);
   $("#st-spent").textContent = money(sum.spent); $("#st-saved").textContent = money(sum.saved); $("#st-count").textContent = String(sum.count);
 
@@ -161,11 +162,20 @@ function renderMonth() {
     h("td", { class: "num", text: money(r.total) }))));
   $("#sum-total").textContent = money(sum.spent);
 
-  const ta = $("#conclusion"); if (document.activeElement !== ta) ta.value = S.conclusions[m] || "";
+  renderConclusion(m, sum);
   const prog = M.accountProgress(S.accounts, S.entries);
   $("#left-card").hidden = !prog.length;
   $("#left-off").replaceChildren(...prog.map((a) => h("li", {}, h("strong", { text: a.name }),
     h("span", { text: a.last ? t("lastEntered", a.last.desc, money(a.last.amount), a.last.date.length === 7 ? monthLabel(a.last.date) : new Date(a.last.date + "T12:00:00").toLocaleDateString(locale(), { day: "numeric", month: "short", year: "numeric" })) : t("nothingYet") }))));
+}
+function renderConclusion(m, sum) {
+  const done = S.conclusions[m] || "", ended = m < M.thisMonth();
+  const notes = $("#notes"); if (document.activeElement !== notes) notes.value = S.notes[m] || "";
+  notes.readOnly = !!done; $("#notes-hint").textContent = done ? t("notesLocked") : "";
+  const nextStart = new Date(`${M.addMonths(m, 1)}-01T12:00:00`).toLocaleDateString(locale(), { day: "numeric", month: "long" });
+  $("#conclusion").textContent = done || (!ended ? t("conclusionWait", nextStart) : sum.count ? "" : t("conclusionNone"));
+  $("#conclusion").classList.toggle("pending", !done);
+  $("#draft").hidden = !!done || !ended || !sum.count;
 }
 function entryRow(e, cats, { showMonth = false } = {}) {
   const c = cats.get(e.cat);
@@ -180,7 +190,7 @@ function entryRow(e, cats, { showMonth = false } = {}) {
 function setupMonth() {
   const f = $("#add-form"), hint = $("#add-suggest");
   $("#prev").onclick = () => go("month", M.addMonths(S.month, -1));
-  $("#next").onclick = () => go("month", M.addMonths(S.month, 1));
+  $("#next").onclick = () => { const n = M.addMonths(S.month, 1); if (n <= M.thisMonth()) go("month", n); };
   $("#today").onclick = () => go("month", M.thisMonth());
   f.cat.addEventListener("change", () => { f.cat.dataset.touched = "1"; hint.textContent = ""; });
   f.desc.addEventListener("input", () => {
@@ -202,16 +212,21 @@ function setupMonth() {
     rebuildSuggester(); renderMonth(); f.desc.focus();
     toast(t("savedMsg"));
   });
+  // Month notes: written during the month, editable until the conclusion is made.
   let timer;
-  $("#conclusion").addEventListener("input", (ev) => {
+  $("#notes").addEventListener("input", (ev) => {
     clearTimeout(timer);
-    timer = setTimeout(() => { const v = ev.target.value.trim(); if (v) S.conclusions[S.month] = v.slice(0, 2000); else delete S.conclusions[S.month]; saveKV("conclusions"); }, 400);
+    timer = setTimeout(async () => { const v = ev.target.value.trim(); if (S.conclusions[S.month]) return; if (v) S.notes[S.month] = v.slice(0, 2000); else delete S.notes[S.month]; await saveKV("notes"); $("#notes-hint").textContent = t("notesSaved"); }, 500);
   });
+  // The conclusion: made once the month has ended, from the numbers and the notes; not editable.
   $("#draft").onclick = async () => {
-    const ta = $("#conclusion"), d = M.draftConclusion(S.entries, S.categories, S.month, { lang: S.settings.lang, locale: locale(), currency: S.settings.currency });
+    const m = S.month; if (m >= M.thisMonth() || S.conclusions[m]) return;
+    const d = M.draftConclusion(S.entries, S.categories, m, { lang: S.settings.lang, locale: locale(), currency: S.settings.currency });
     if (!d) return;
-    if (ta.value.trim() && !(await confirmBox(S.settings.lang === "pt" ? "Substituir o texto escrito pelo rascunho?" : "Replace what is written with the draft?"))) return;
-    ta.value = d; S.conclusions[S.month] = d; saveKV("conclusions"); ta.focus();
+    if (!(await confirmBox(t("conclusionSure"), { yes: t("draft") }))) return;
+    const notes = (S.notes[m] || "").trim();
+    S.conclusions[m] = notes ? `${d}\n\n${t("notesLabel")}: ${notes}` : d;
+    await saveKV("conclusions"); renderMonth();
   };
 }
 
@@ -292,7 +307,7 @@ function renderCharts() {
     data.push({ label: mo === 1 || m === from ? `${SHORT_MONTHS[S.settings.lang][mo - 1]} ${String(y).slice(2)}` : SHORT_MONTHS[S.settings.lang][mo - 1], title: monthLabel(m), value: totals.get(m) || 0 });
   }
   columns($("#ch-month"), data, { format: money, short: shortMoney, tableHeads: [t("month"), t("spent")], tableLabel: t("byMonth") });
-  hbars($("#ch-cat"), M.categoryTotals(S.entries, S.categories, { from, to }).map((r) => ({ label: r.cat.name, value: r.total })), { format: money, tableLabel: t("byCategory") });
+  hbars($("#ch-cat"), M.categoryTotals(S.entries, S.categories, { from, to }).map((r) => ({ label: r.cat.name, value: r.total })), { format: money, tableLabel: t("byCategory"), empty: t("nothingSpent") });
   columns($("#ch-year"), M.yearTotals(S.entries, S.categories).map(([y, v]) => ({ label: y, value: v })), { format: money, short: shortMoney, tableHeads: [t("year"), t("spent")], tableLabel: t("byYear") });
   for (const b of $$("[data-table]")) { const tab = $(`#${b.dataset.table} .chart-table`); b.textContent = tab && !tab.hidden ? t("hideTable") : t("showTable"); b.setAttribute("aria-expanded", String(!!tab && !tab.hidden)); }
 }
@@ -375,13 +390,17 @@ function renderSettings() {
       await db.putEntries(moved); await saveKV("categories"); rebuildSuggester(); renderSettings(); toast(t("savedMsg"));
     });
     const move = (d) => async () => { const other = cats[i + d]; if (!other) return; [c.order, other.order] = [other.order, c.order]; if (c.order === other.order) c.order += d; await saveKV("categories"); renderSettings(); $$("#cat-list li")[i + d]?.querySelector(d < 0 ? "[data-up]" : "[data-down]")?.focus(); };
-    return h("li", { class: c.hidden ? "muted" : "" }, name, kind,
-      h("span", { class: "count", text: String(counts.get(c.id) || 0), title: t("entries") }),
+    // One tidy row: name, entry count, order arrows; the rarer actions sit under More
+    const more = h("details", { class: "more" }, h("summary", { text: t("more") }),
+      h("div", { class: "more-body" }, kind,
+        h("button", { type: "button", class: "ghost small", text: c.hidden ? t("show") : t("hide"), onclick: async () => { c.hidden = !c.hidden; await saveKV("categories"); renderSettings(); } }),
+        merge,
+        counts.get(c.id) ? null : h("button", { type: "button", class: "ghost small", text: t("delete"), onclick: async () => { S.categories = S.categories.filter((x) => x !== c); await saveKV("categories"); renderSettings(); } })));
+    return h("li", { class: c.hidden ? "muted" : "" }, name,
+      h("span", { class: "count", text: t("nEntries", counts.get(c.id) || 0) }),
       h("button", { type: "button", class: "icon-btn", "data-up": true, "aria-label": `${t("moveUp")}: ${c.name}`, disabled: i === 0, onclick: move(-1), text: "↑" }),
       h("button", { type: "button", class: "icon-btn", "data-down": true, "aria-label": `${t("moveDown")}: ${c.name}`, disabled: i === cats.length - 1, onclick: move(1), text: "↓" }),
-      h("button", { type: "button", class: "ghost small", text: c.hidden ? t("show") : t("hide"), onclick: async () => { c.hidden = !c.hidden; await saveKV("categories"); renderSettings(); } }),
-      merge,
-      counts.get(c.id) ? null : h("button", { type: "button", class: "ghost small", text: t("delete"), onclick: async () => { S.categories = S.categories.filter((x) => x !== c); await saveKV("categories"); renderSettings(); } }));
+      more);
   }));
   $("#acc-list").replaceChildren(...S.accounts.map((a) => {
     const name = h("input", { type: "text", value: a.name, maxlength: "60", "aria-label": t("accountName") });
@@ -401,8 +420,9 @@ function download(blob, name) {
 const stamp = () => todayISO();
 const hasData = () => S.entries.length > 0 || S.goals.length > 0;
 async function replaceState(next) {
-  await db.replaceAll({ entries: next.entries, kv: { categories: next.categories, accounts: next.accounts, goals: next.goals, conclusions: next.conclusions, settings: S.settings } });
-  Object.assign(S, { entries: next.entries, categories: next.categories, accounts: next.accounts, goals: next.goals, conclusions: next.conclusions });
+  const notes = next.notes && typeof next.notes === "object" ? next.notes : {};
+  await db.replaceAll({ entries: next.entries, kv: { categories: next.categories, accounts: next.accounts, goals: next.goals, conclusions: next.conclusions, notes, settings: S.settings } });
+  Object.assign(S, { entries: next.entries, categories: next.categories, accounts: next.accounts, goals: next.goals, conclusions: next.conclusions, notes });
   rebuildSuggester();
 }
 function setupSettings() {
@@ -438,7 +458,7 @@ function setupSettings() {
     download(await exportWorkbook(S, { lang: S.settings.lang, locale: locale(), currency: S.settings.currency }), `${S.settings.lang === "pt" ? "despesas" : "expenses"}-${stamp()}.xlsx`);
   };
   $("#backup").onclick = () => {
-    const b = { app: "expenses", version: M.BACKUP_VERSION, saved: new Date().toISOString(), entries: S.entries, categories: S.categories, accounts: S.accounts, goals: S.goals, conclusions: S.conclusions, settings: S.settings };
+    const b = { app: "expenses", version: M.BACKUP_VERSION, saved: new Date().toISOString(), entries: S.entries, categories: S.categories, accounts: S.accounts, goals: S.goals, conclusions: S.conclusions, notes: S.notes, settings: S.settings };
     download(new Blob([JSON.stringify(b)], { type: "application/json" }), `ledger-backup-${stamp()}.json`);
   };
   $("#restore").addEventListener("change", async (ev) => {
@@ -479,7 +499,7 @@ async function start() {
   const navLang = (navigator.language || "en").toLowerCase().startsWith("pt") ? "pt" : "en";
   S.settings = { lang: navLang, currency: "EUR", theme: "", ...(saved.kv.settings || {}) };
   try { const th = localStorage.getItem("theme"); if (th !== null) S.settings.theme = th; } catch { /* private mode */ }
-  S.entries = saved.entries; S.accounts = saved.kv.accounts || []; S.goals = saved.kv.goals || []; S.conclusions = saved.kv.conclusions || {};
+  S.entries = saved.entries; S.accounts = saved.kv.accounts || []; S.goals = saved.kv.goals || []; S.conclusions = saved.kv.conclusions || {}; S.notes = saved.kv.notes || {};
   S.categories = saved.kv.categories || [];
   if (!S.categories.length) { S.categories = M.defaultCategories(S.settings.lang); db.setKV("categories", S.categories).catch(storageFailed); }
   applyTheme(); applyWords(); rebuildSuggester();

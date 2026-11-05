@@ -13,15 +13,17 @@ export function columns(host, data, { format, short = format, tableHeads = ["", 
   const fig = document.createElement("div"); fig.className = "chart"; host.appendChild(fig);
   const W = 640, H = 240, padL = 56, padB = 28, padT = 12, padR = 8;
   const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": tableLabel, class: "chart-svg" }, fig);
-  const max = niceMax(Math.max(0, ...data.map((d) => d.value)));
+  const max = niceMax(Math.max(0, ...data.map((d) => d.value))), allZero = !data.some((d) => d.value > 0);
+  const narrow = (host.clientWidth || 640) < 520;
   const plotW = W - padL - padR, plotH = H - padT - padB;
   for (let i = 0; i <= 4; i++) {
     const y = padT + plotH - (plotH * i) / 4;
     el("line", { x1: padL, x2: W - padR, y1: y, y2: y, class: i ? "grid" : "axis" }, svg);
+    if (allZero && i) continue; // no data: one €0 line, not five
     const t = el("text", { x: padL - 8, y: y + 4, class: "tick", "text-anchor": "end" }, svg); t.textContent = short((max * i) / 4);
   }
   const n = Math.max(1, data.length), slot = plotW / n, bw = Math.max(2, Math.min(36, slot - 2));
-  const every = Math.ceil(n / 12);
+  const every = Math.ceil(n / (narrow ? 6 : 12)); // fewer labels on a phone, so they stay readable
   const tip = document.createElement("div"); tip.className = "tip"; tip.hidden = true; tip.setAttribute("role", "status"); fig.appendChild(tip);
   const show = (d, x) => {
     tip.replaceChildren(); const b = document.createElement("strong"); b.textContent = format(d.value); const s = document.createElement("span"); s.textContent = d.title || d.label;
@@ -45,8 +47,9 @@ export function columns(host, data, { format, short = format, tableHeads = ["", 
 }
 
 // Horizontal bars, biggest first: category totals. Labels sit on the left in text ink.
-export function hbars(host, data, { format, tableHeads = ["", ""], tableLabel = "" } = {}) {
+export function hbars(host, data, { format, tableHeads = ["", ""], tableLabel = "", empty = "" } = {}) {
   host.replaceChildren();
+  if (!data.length && empty) { const p = document.createElement("p"); p.className = "empty"; p.textContent = empty; host.appendChild(p); return null; }
   const list = document.createElement("ol"); list.className = "hbars"; list.setAttribute("aria-label", tableLabel); host.appendChild(list);
   const max = Math.max(1, ...data.map((d) => d.value)), total = data.reduce((s, d) => s + d.value, 0) || 1;
   for (const d of data) {
