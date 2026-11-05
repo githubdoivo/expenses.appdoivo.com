@@ -1,6 +1,6 @@
 {
-  "name": "Expenses",
-  "short_name": "Expenses",
+  "name": "Ledger",
+  "short_name": "Ledger",
   "description": "Your money, month by month. Everything stays on your device.",
   "id": "/",
   "start_url": "/",
