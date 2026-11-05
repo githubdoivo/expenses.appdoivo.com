@@ -16,7 +16,7 @@ function h(tag, props = {}, ...kids) {
     if (k === "class") n.className = v;
     else if (k === "text") n.textContent = v;
     else if (k.startsWith("on")) n.addEventListener(k.slice(2), v);
-    else if (k in n && typeof v !== "string") n[k] = v;
+    else if ((k === "value" && n.tagName === "TEXTAREA") || (k in n && typeof v !== "string")) n[k] = v;
     else n.setAttribute(k, v === true ? "" : v);
   }
   for (const k of kids.flat()) if (k !== null && k !== undefined && k !== false) n.append(k.nodeType ? k : String(k));
