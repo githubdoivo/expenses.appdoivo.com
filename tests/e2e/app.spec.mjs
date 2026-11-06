@@ -367,7 +367,7 @@ test("the window sits scrolled down by the strip above it, and only the page lay
   await open(page);
   await importSample(page);
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(160);
-  const top = await page.locator(".top").evaluate((el) => el.getBoundingClientRect().top);
+  const top = await page.locator(".shell > :first-child").evaluate((el) => el.getBoundingClientRect().top);   // the Moved-to-Tally note, else the header
   expect(top).toBeGreaterThanOrEqual(0);
   expect(top).toBeLessThan(40);
   await page.evaluate(() => window.scrollTo(0, 0));

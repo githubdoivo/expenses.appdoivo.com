@@ -4,7 +4,7 @@
 export const WORDS = {
   en: {
     brand: "Ledger", tagline: "Your Money, Month by Month",
-    navMonth: "Month", navSearch: "Search", navCharts: "Charts", navShared: "Split Bills", navGoals: "Goals", navSettings: "Settings",
+    navMonth: "Month", navSearch: "Search", navCharts: "Charts", navShared: "Split Bills", navGoals: "Goals", moved: "Ledger is now Tally. Download a backup here (Settings → Your Data → Download Backup), then open Tally and restore it.", movedLink: "Open Tally →", navSettings: "Settings",
     prevMonth: "Previous Month", nextMonth: "Next Month", today: "This Month",
     spent: "Spent", saved: "Saved", entries: "Entries",
     addTitle: "Add an Expense", desc: "Description", category: "Category", amount: "Amount", date: "Date", account: "Account", note: "Note", noAccount: "No Account",
@@ -40,7 +40,7 @@ export const WORDS = {
   },
   pt: {
     brand: "Ledger", tagline: "O Seu Dinheiro, Mês a Mês",
-    navMonth: "Mês", navSearch: "Pesquisar", navCharts: "Gráficos", navShared: "Contas Divididas", navGoals: "Objetivos", navSettings: "Definições",
+    navMonth: "Mês", navSearch: "Pesquisar", navCharts: "Gráficos", navShared: "Contas Divididas", navGoals: "Objetivos", moved: "O Ledger agora é Tally. Descarregue uma cópia aqui (Definições → Os Seus Dados → Descarregar Cópia), depois abra o Tally e restaure-a.", movedLink: "Abrir o Tally →", navSettings: "Definições",
     prevMonth: "Mês Anterior", nextMonth: "Mês Seguinte", today: "Este Mês",
     spent: "Gasto", saved: "Poupado", entries: "Entradas",
     addTitle: "Adicionar Despesa", desc: "Descrição", category: "Categoria", amount: "Valor", date: "Data", account: "Conta", note: "Nota", noAccount: "Sem Conta",
